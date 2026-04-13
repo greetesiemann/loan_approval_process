@@ -1,0 +1,10 @@
+services:
+  db:
+    image: postgres:15
+    container_name: loan-db
+    environment:
+      POSTGRES_DB: loan_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: Siemann
+    ports:
+      - "5433:5432"
