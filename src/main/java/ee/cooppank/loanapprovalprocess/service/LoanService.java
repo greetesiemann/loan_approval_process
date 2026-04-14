@@ -1,10 +1,17 @@
 package ee.cooppank.loanapprovalprocess.service;
 
 import ee.cooppank.loanapprovalprocess.entity.LoanApplication;
+import ee.cooppank.loanapprovalprocess.repository.LoanApplicationRepository;
 import org.springframework.stereotype.Service;
 
 @Service
 public class LoanService {
+
+    private final LoanApplicationRepository repository;
+
+    public LoanService(LoanApplicationRepository repository) {
+        this.repository = repository;
+    }
 
     public boolean isValidEstonianPersonalCode(String personalCode) {
         // Kontrollime, kas kood on olemas ja on täpselt 11 numbrit
@@ -58,5 +65,11 @@ public class LoanService {
             throw new IllegalArgumentException("Vigane Eesti isikukood");
         }
         // Siia saad hiljem lisada ka muud kontrollid (nt maksehäired)
+    }
+
+    public LoanApplication saveApplication(LoanApplication application) {
+        // Enne salvestamist võid siin määrata vaikeväärtused
+        // application.setStatus("PENDING");
+        return repository.save(application);
     }
 }
