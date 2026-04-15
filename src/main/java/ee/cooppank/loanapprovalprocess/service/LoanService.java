@@ -4,6 +4,10 @@ import ee.cooppank.loanapprovalprocess.entity.LoanApplication;
 import ee.cooppank.loanapprovalprocess.repository.LoanApplicationRepository;
 import org.springframework.stereotype.Service;
 
+import java.text.DateFormat;
+import java.time.LocalDate;
+import java.util.List;
+
 @Service
 public class LoanService {
 
@@ -64,12 +68,56 @@ public class LoanService {
             // Viska erind, kui isikukood on vale
             throw new IllegalArgumentException("Vigane Eesti isikukood");
         }
-        // Siia saad hiljem lisada ka muud kontrollid (nt maksehäired)
+
+        // 2. UUS: Kontrollime aktiivse taotluse olemasolu (vastavalt p 1.1)
+        // Kasutame juhendis toodud lõppolekuid "APPROVED" ja "REJECTED"
+        List<String> closedStatuses = List.of("APPROVED", "REJECTED");
+        if (repository.existsByPersonalCodeAndStatusNotIn(application.getPersonalCode(), closedStatuses)) {
+            throw new IllegalStateException("Kliendil on juba aktiivne laenutaotlus.");
+        }
     }
 
     public LoanApplication saveApplication(LoanApplication application) {
-        // Enne salvestamist võid siin määrata vaikeväärtused
-        // application.setStatus("PENDING");
+        // Kutsume kontrollid välja
+        validateApplication(application);
+
+        // 2. Arvutame vanuse isikukoodist
+        int age = personsAge(application.getPersonalCode());
+
+        // 3. Vanusekontroll (Ülesanne 1.2)
+        // Kui vanus on üle 70, siis lükkame kohe tagasi [cite: 31, 32]
+        if (age > 70) {
+            application.setStatus("REJECTED");
+            application.setRejectionReason("CUSTOMER_TOO_OLD");
+        } else {
+            // Kui vanus on sobiv, siis määrame algolekuks STARTED [cite: 5]
+            application.setStatus("STARTED");
+        }
+
         return repository.save(application);
+    }
+
+    public int personsAge(String personalCode) {
+        personalCode = personalCode.substring(0, 7);
+        int birthYear = 0;
+
+        if ((personalCode.charAt(0) == '1') || (personalCode.charAt(0) == '2')) {
+            birthYear = 1800 +  Integer.parseInt(personalCode.substring(1, 3));
+        } else if ((personalCode.charAt(0) == '3') || (personalCode.charAt(0) == '4')) {
+            birthYear = 1900 + Integer.parseInt(personalCode.substring(1, 3));
+        } else if ((personalCode.charAt(0) == '5') || (personalCode.charAt(0) == '6')) {
+            birthYear = 2000 + Integer.parseInt(personalCode.substring(1, 3));
+        } else if ((personalCode.charAt(0) == '7') || (personalCode.charAt(0) == '8')) {
+            birthYear = 2100 + Integer.parseInt(personalCode.substring(1, 3));
+        } else {
+            throw  new IllegalArgumentException("Vigane Eesti isikukood");
+        }
+        int birthMonth = Integer.parseInt(personalCode.substring(3, 5));
+        int birthDay = Integer.parseInt(personalCode.substring(5, 7));
+
+        // Loome sünnikuupäeva objekti
+        LocalDate birthDate = LocalDate.of(birthYear, birthMonth, birthDay);
+        // Arvutame vanuse aastates võrreldes tänasega
+        return (int) java.time.temporal.ChronoUnit.YEARS.between(birthDate, LocalDate.now());
     }
 }

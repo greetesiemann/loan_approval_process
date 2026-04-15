@@ -20,10 +20,7 @@ public class LoanController {
 
     @PostMapping("/apply")
     public LoanApplication apply(@Valid @RequestBody LoanApplication application) {
-        // Service kontrollib isikukoodi. Kui on vale, viskab Service vea.
-        loanService.validateApplication(application);
-
-        // Kui siia maale jõutakse, on kõik korras
-        return application;
+        // Ära kutsu ainult validateApplication, vaid kutsu meetodit, mis ka SALVESTAB
+        return loanService.saveApplication(application);
     }
 }
