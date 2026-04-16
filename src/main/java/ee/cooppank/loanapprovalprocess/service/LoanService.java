@@ -1,7 +1,10 @@
 package ee.cooppank.loanapprovalprocess.service;
 
 import ee.cooppank.loanapprovalprocess.entity.LoanApplication;
+import ee.cooppank.loanapprovalprocess.exception.ActiveLoanException;
+import ee.cooppank.loanapprovalprocess.exception.InvalidPersonalCodeException;
 import ee.cooppank.loanapprovalprocess.repository.LoanApplicationRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.text.DateFormat;
@@ -12,6 +15,8 @@ import java.util.List;
 public class LoanService {
 
     private final LoanApplicationRepository repository;
+    @Value("${loan.validation.max-age}")
+    private int maxAge;
 
     public LoanService(LoanApplicationRepository repository) {
         this.repository = repository;
@@ -23,13 +28,13 @@ public class LoanService {
             return false;
         }
 
-        // Kontrollime esimest numbrit (sugu/sajand) - peab olema 1 kuni 6
+        // Kontrollime esimest numbrit
         int firstDigit = Character.getNumericValue(personalCode.charAt(0));
         if (firstDigit < 1 || firstDigit > 6) {
             return false;
         }
 
-        // Kontrollnumbri arvutamine (see on koodi viimane ehk 11. number)
+        // Kontrollnumbri arvutamine
         int lastDigit = Character.getNumericValue(personalCode.charAt(10));
 
         // I aste
@@ -65,15 +70,14 @@ public class LoanService {
 
     public void validateApplication(LoanApplication application) {
         if (!isValidEstonianPersonalCode(application.getPersonalCode())) {
-            // Viska erind, kui isikukood on vale
-            throw new IllegalArgumentException("Vigane Eesti isikukood");
+            throw new InvalidPersonalCodeException("Vigane Eesti isikukood");
         }
 
-        // 2. UUS: Kontrollime aktiivse taotluse olemasolu (vastavalt p 1.1)
+        // Kontrollime aktiivse taotluse olemasolu
         // Kasutame juhendis toodud lõppolekuid "APPROVED" ja "REJECTED"
         List<String> closedStatuses = List.of("APPROVED", "REJECTED");
         if (repository.existsByPersonalCodeAndStatusNotIn(application.getPersonalCode(), closedStatuses)) {
-            throw new IllegalStateException("Kliendil on juba aktiivne laenutaotlus.");
+            throw new ActiveLoanException("Kliendil on juba aktiivne laenutaotlus.");
         }
     }
 
@@ -81,19 +85,17 @@ public class LoanService {
         // Kutsume kontrollid välja
         validateApplication(application);
 
-        // 2. Arvutame vanuse isikukoodist
+        // Arvutame vanuse isikukoodist
         int age = personsAge(application.getPersonalCode());
 
-        // 3. Vanusekontroll (Ülesanne 1.2)
-        // Kui vanus on üle 70, siis lükkame kohe tagasi [cite: 31, 32]
-        if (age > 70) {
+        // Vanusekontroll
+        if (age > maxAge) {
             application.setStatus("REJECTED");
             application.setRejectionReason("CUSTOMER_TOO_OLD");
         } else {
-            // Kui vanus on sobiv, siis määrame algolekuks STARTED [cite: 5]
+            // Kui vanus on sobiv, siis määrame algolekuks STARTED
             application.setStatus("STARTED");
         }
-
         return repository.save(application);
     }
 
@@ -110,7 +112,7 @@ public class LoanService {
         } else if ((personalCode.charAt(0) == '7') || (personalCode.charAt(0) == '8')) {
             birthYear = 2100 + Integer.parseInt(personalCode.substring(1, 3));
         } else {
-            throw  new IllegalArgumentException("Vigane Eesti isikukood");
+            throw  new InvalidPersonalCodeException("Vigane Eesti isikukood");
         }
         int birthMonth = Integer.parseInt(personalCode.substring(3, 5));
         int birthDay = Integer.parseInt(personalCode.substring(5, 7));

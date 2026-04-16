@@ -30,9 +30,17 @@ public class GlobalExceptionHandler {
     }
 
 
-    @ExceptionHandler(IllegalArgumentException.class)
+    @ExceptionHandler(InvalidPersonalCodeException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public Map<String, String> handleIllegalArgument(IllegalArgumentException ex) {
+    public Map<String, String> handleInvalidPersonalCodeException(InvalidPersonalCodeException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return error;
+    }
+
+    @ExceptionHandler(ActiveLoanException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleActiveLoanException(ActiveLoanException ex) {
         Map<String, String> error = new HashMap<>();
         error.put("error", ex.getMessage());
         return error;
