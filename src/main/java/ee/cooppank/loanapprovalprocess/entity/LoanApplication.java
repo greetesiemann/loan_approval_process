@@ -39,11 +39,14 @@ public class LoanApplication {
     @NotNull
     private BigDecimal baseInterestRate;
 
-    private String status; // Näiteks: "APPROVED", "REJECTED"
+    private String status;
     private String rejectionReason;
     private LocalDateTime createdAt;
 
-    @OneToMany(mappedBy = "loanApplication", fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "loanApplication",
+            cascade = CascadeType.ALL,
+            fetch = FetchType.LAZY,
+            orphanRemoval = true)
     private List<PaymentSchedule> paymentSchedule;
 
     @PrePersist

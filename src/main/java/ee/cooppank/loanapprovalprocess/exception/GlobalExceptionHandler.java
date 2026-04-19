@@ -18,11 +18,8 @@ public class GlobalExceptionHandler {
     public Map<String, String> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
 
-        // Võtame veast välja kõik väljad, mis valideerimist ei läbinud
         ex.getBindingResult().getAllErrors().forEach((error) -> {
-            // Leiame välja nime
             String fieldName = ((FieldError) error).getField();
-            // Võtame veateate
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
@@ -57,6 +54,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ProcessFinishedException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, String> handleProcessFinishedException(ProcessFinishedException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return error;
+    }
+
+    @ExceptionHandler(WrongStateException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleWrongStateException(WrongStateException ex) {
         Map<String, String> error = new HashMap<>();
         error.put("error", ex.getMessage());
         return error;

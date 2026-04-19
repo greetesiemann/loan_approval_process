@@ -3,10 +3,7 @@ package ee.cooppank.loanapprovalprocess.service;
 import ee.cooppank.loanapprovalprocess.entity.LoanApplication;
 import ee.cooppank.loanapprovalprocess.entity.PaymentSchedule;
 import ee.cooppank.loanapprovalprocess.entity.Settings;
-import ee.cooppank.loanapprovalprocess.exception.ActiveLoanException;
-import ee.cooppank.loanapprovalprocess.exception.InvalidPersonalCodeException;
-import ee.cooppank.loanapprovalprocess.exception.LoanNotFoundException;
-import ee.cooppank.loanapprovalprocess.exception.ProcessFinishedException;
+import ee.cooppank.loanapprovalprocess.exception.*;
 import ee.cooppank.loanapprovalprocess.repository.LoanApplicationRepository;
 import ee.cooppank.loanapprovalprocess.repository.PaymentScheduleRepository;
 import ee.cooppank.loanapprovalprocess.repository.SettingsRepository;
@@ -34,22 +31,25 @@ public class LoanService {
         this.settingsRepository = settingsRepository;
     }
 
+    /**
+     * Validates an Estonian personal code according to the national standard.
+     * Checks the format, birth century, and the checksum.
+     * @param personalCode The 11-digit personal code string.
+     * @return true if the personal code is valid, false otherwise.
+     */
     public boolean isValidEstonianPersonalCode(String personalCode) {
-        // Kontrollime, kas kood on olemas ja on täpselt 11 numbrit
         if (personalCode == null || !personalCode.matches("\\d{11}")) {
             return false;
         }
 
-        // Kontrollime esimest numbrit
         int firstDigit = Character.getNumericValue(personalCode.charAt(0));
         if (firstDigit < 1 || firstDigit > 6) {
             return false;
         }
 
-        // Kontrollnumbri arvutamine
         int lastDigit = Character.getNumericValue(personalCode.charAt(10));
 
-        // I aste
+        // I check
         int[] weights1 = {1, 2, 3, 4, 5, 6, 7, 8, 9, 1};
         int sum1 = 0;
         for (int i = 0; i < 10; i++) {
@@ -58,12 +58,12 @@ public class LoanService {
 
         int remainder = sum1 % 11;
 
-        // Kui jääk ei ole 10, siis jääk peab võrduma viimase numbriga
+
         if (remainder < 10) {
             return remainder == lastDigit;
         }
 
-        // II aste: kui jääk oli 10
+        // II check
         int[] weights2 = {3, 4, 5, 6, 7, 8, 9, 1, 2, 3};
         int sum2 = 0;
         for (int i = 0; i < 10; i++) {
@@ -72,7 +72,6 @@ public class LoanService {
 
         remainder = sum2 % 11;
 
-        // Kui ka nüüd on jääk 10, siis kontrollnumber on 0
         if (remainder == 10) {
             return lastDigit == 0;
         } else {
@@ -80,26 +79,42 @@ public class LoanService {
         }
     }
 
+    /**
+     * Performs business validation for a new loan application.
+     * Validates the personal code and checks if the applicant has an active loan.
+     * @param application The loan application to validate.
+     * @throws InvalidPersonalCodeException If the personal code is mathematically invalid.
+     * @throws ActiveLoanException If the applicant already has an ongoing loan process.
+     */
     public void validateApplication(LoanApplication application) {
         if (!isValidEstonianPersonalCode(application.getPersonalCode())) {
             throw new InvalidPersonalCodeException("Vigane Eesti isikukood");
         }
 
-        // Kontrollime aktiivse taotluse olemasolu
-        // Kasutame juhendis toodud lõppolekuid "APPROVED" ja "REJECTED"
         List<String> closedStatuses = List.of("APPROVED", "REJECTED");
         if (loanRepository.existsByPersonalCodeAndStatusNotIn(application.getPersonalCode(), closedStatuses)) {
             throw new ActiveLoanException("Kliendil on juba aktiivne laenutaotlus.");
         }
     }
 
+    /**
+     * Saves a new loan application to the database and sets its initial status to STARTED.
+     * @param application The loan application data.
+     * @return The saved loan application entity.
+     */
     public LoanApplication saveApplication(LoanApplication application) {
-        // Kutsume kontrollid välja
         validateApplication(application);
         application.setStatus("STARTED");
         return loanRepository.save(application);
     }
 
+    /**
+     * Processes the loan application by determining the base interest rate,
+     * checking eligibility based on age, and generating a payment schedule.
+     * @param application The application to process.
+     * @return The updated loan application entity.
+     */
+    @Transactional
     public LoanApplication processApplication(LoanApplication application) {
         String euriborValue = getSettingValue("EURIBOR_6M");
         application.setBaseInterestRate(new BigDecimal(euriborValue));
@@ -112,6 +127,11 @@ public class LoanService {
         return loanRepository.save(application);
     }
 
+    /**
+     * Generates a monthly annuity payment schedule for a loan application.
+     * @param application The application containing loan amount, period, and interest rates.
+     * @return A list of payment schedule entries.
+     */
     public List<PaymentSchedule> generatePaymentSchedule (LoanApplication application) {
         BigDecimal r = application.getBaseInterestRate()
                 .add(application.getInterestMargin())
@@ -141,6 +161,12 @@ public class LoanService {
         return schedule;
     }
 
+    /**
+     * Checks if the applicant's age is within the limits defined in settings.
+     * Sets the application status to REJECTED if age is outside the bounds.
+     * @param application The application to check.
+     * @return true if age is valid, false if application is rejected.
+     */
     public boolean ageControl(LoanApplication application) {
         int age = personsAge(application.getPersonalCode());
         int maxAgeFromDb = Integer.parseInt(getSettingValue("MAX_AGE"));
@@ -158,6 +184,12 @@ public class LoanService {
         return true;
     }
 
+    /**
+     * Calculates the age of a person based on their Estonian personal code.
+     * @param personalCode The 11-digit personal code.
+     * @return The current age in years.
+     * @throws InvalidPersonalCodeException If the first digit of the code is unrecognized.
+     */
     public int personsAge(String personalCode) {
         personalCode = personalCode.substring(0, 7);
         int birthYear = 0;
@@ -176,22 +208,32 @@ public class LoanService {
         int birthMonth = Integer.parseInt(personalCode.substring(3, 5));
         int birthDay = Integer.parseInt(personalCode.substring(5, 7));
 
-        // Loome sünnikuupäeva objekti
         LocalDate birthDate = LocalDate.of(birthYear, birthMonth, birthDay);
-        // Arvutame vanuse aastates võrreldes tänasega
         return (int) java.time.temporal.ChronoUnit.YEARS.between(birthDate, LocalDate.now());
     }
 
+    /**
+     * Retrieves a loan application by its ID.
+     * @param id The UUID of the application.
+     * @return The found application entity.
+     * @throws LoanNotFoundException If no application with the given ID exists.
+     */
     public LoanApplication getApplication(UUID id) {
         return loanRepository.findById(id)
                 .orElseThrow(() -> new LoanNotFoundException("Taotlust ei leitud"));
     }
 
+    /**
+     * Finalizes and approves a loan application.
+     * Only applications in IN_REVIEW status can be approved.
+     * @param id The UUID of the application.
+     * @return The updated application entity.
+     * @throws WrongStateException If the application is not in the correct status.
+     */
     public LoanApplication approveLoan(UUID id) {
         LoanApplication application = getApplication(id);
-        // Ainult IN_REVIEW staatuses saab kinnitada
         if (!"IN_REVIEW".equals(application.getStatus())) {
-            throw new ProcessFinishedException(
+            throw new WrongStateException(
                     "Taotlust saab kinnitada ainult IN_REVIEW staatuses. Praegune staatus: "
                             + application.getStatus());
         }
@@ -199,11 +241,18 @@ public class LoanService {
         return loanRepository.save(application);
     }
 
+    /**
+     * Finalizes and rejects a loan application with a specific reason.
+     * Only applications in IN_REVIEW status can be rejected.
+     * @param id The UUID of the application.
+     * @param reason The reason for rejection.
+     * @return The updated application entity.
+     * @throws WrongStateException If the application is not in the correct status.
+     */
     public LoanApplication rejectLoan(UUID id, String reason) {
         LoanApplication application = getApplication(id);
-        // Ainult IN_REVIEW staatuses saab tagasi lükata
         if (!"IN_REVIEW".equals(application.getStatus())) {
-            throw new ProcessFinishedException(
+            throw new WrongStateException(
                     "Taotlust saab tagasi lükata ainult IN_REVIEW staatuses. Praegune staatus: "
                             + application.getStatus());
         }
@@ -212,34 +261,43 @@ public class LoanService {
         return loanRepository.save(application);
     }
 
+    /**
+     * Helper method to fetch a setting value from the database.
+     * @param key The setting key (e.g., EURIBOR_6M).
+     * @return The value of the setting as a string.
+     * @throws RuntimeException If the setting is missing from the database.
+     */
     private String getSettingValue(String key) {
         return settingsRepository.findById(key)
                 .map(Settings::getValue)
                 .orElseThrow(() -> new RuntimeException("Seadet " + key + " ei leitud andmebaasist!"));
     }
 
+    /**
+     * Updates loan parameters and regenerates the payment schedule.
+     * Only possible if the process is not yet finished (Approved or Rejected).
+     * @param id The UUID of the application.
+     * @param updatedData Data containing new amount, period, or margin.
+     * @return The updated loan application entity.
+     * @throws ProcessFinishedException If the process is already completed.
+     */
     @Transactional
     public LoanApplication updateAndRegenerate(UUID id, LoanApplication updatedData) {
         LoanApplication application = getApplication(id);
 
-        // Kontrollime, et protsess poleks juba lõppenud
         if ("APPROVED".equals(application.getStatus()) || "REJECTED".equals(application.getStatus())) {
             throw new ProcessFinishedException("Lõppenud protsessi graafikut ei saa muuta.");
         }
 
-        // Uuendame muudetavad väljad
         application.setLoanAmount(updatedData.getLoanAmount());
         application.setLoanPeriodMonths(updatedData.getLoanPeriodMonths());
         application.setInterestMargin(updatedData.getInterestMargin());
 
-        // Värskendame ka Euribori (et oleks kõige uuem määr andmebaasist)
         String euriborValue = getSettingValue("EURIBOR_6M");
         application.setBaseInterestRate(new BigDecimal(euriborValue));
 
-        // 1. Kustutame vana graafiku
         paymentScheduleRepository.deleteByLoanApplicationId(id);
 
-        // 2. Genereerime uue graafiku
         List<PaymentSchedule> newSchedules = generatePaymentSchedule(application);
         paymentScheduleRepository.saveAll(newSchedules);
 
