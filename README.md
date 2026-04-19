@@ -98,6 +98,7 @@ src/
 │       ├── db/migration/    # Flyway SQL migratsioonid (V1, V2, V3)
 │       └── application.properties
 └── test/                    # Mockito ühikutestid
+```
 
 ## Implementeeritud lisaülesanded
 
