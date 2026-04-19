@@ -72,9 +72,7 @@ POST /api/loan/apply
 ```
 
 ## Protsessi staatus
-STARTED → IN_REVIEW → APPROVED
-↘ REJECTED
-↘ REJECTED (CUSTOMER_TOO_OLD / CUSTOMER_TOO_YOUNG)
+STARTED → (age check) → IN_REVIEW → APPROVED/REJECTED
 
 ## Seadistatavad parameetrid
 
@@ -102,7 +100,7 @@ src/
 
 ## Implementeeritud lisaülesanded
 
-- ✅ Veahaldus `@RestControllerAdvice` abil
-- ✅ Mockito ühikutestid
-- ✅ Dünaamilised parameetrid andmebaasist (Euribor, MAX_AGE, MIN_AGE)
-- ✅ Maksegraafiku regenereerimine IN_REVIEW staatuses
+- Veahaldus `@RestControllerAdvice` abil
+- Mockito ühikutestid
+- Dünaamilised parameetrid andmebaasist (Euribor, MAX_AGE, MIN_AGE)
+- Maksegraafiku regenereerimine IN_REVIEW staatuses
