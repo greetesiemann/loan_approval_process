@@ -135,7 +135,7 @@ public class LoanService {
             entry.setTotalPayment(monthlyPayment);
             entry.setInterest(interest);
             entry.setPrincipal(principal);
-            entry.setRemainingBalance(remainingBalance);
+            entry.setRemainingBalance(remainingBalance.max(BigDecimal.ZERO));
             schedule.add(entry);
         }
         return schedule;
@@ -189,12 +189,24 @@ public class LoanService {
 
     public LoanApplication approveLoan(UUID id) {
         LoanApplication application = getApplication(id);
+        // Ainult IN_REVIEW staatuses saab kinnitada
+        if (!"IN_REVIEW".equals(application.getStatus())) {
+            throw new ProcessFinishedException(
+                    "Taotlust saab kinnitada ainult IN_REVIEW staatuses. Praegune staatus: "
+                            + application.getStatus());
+        }
         application.setStatus("APPROVED");
         return loanRepository.save(application);
     }
 
     public LoanApplication rejectLoan(UUID id, String reason) {
         LoanApplication application = getApplication(id);
+        // Ainult IN_REVIEW staatuses saab tagasi lükata
+        if (!"IN_REVIEW".equals(application.getStatus())) {
+            throw new ProcessFinishedException(
+                    "Taotlust saab tagasi lükata ainult IN_REVIEW staatuses. Praegune staatus: "
+                            + application.getStatus());
+        }
         application.setStatus("REJECTED");
         application.setRejectionReason(reason);
         return loanRepository.save(application);

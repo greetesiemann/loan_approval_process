@@ -47,19 +47,18 @@ class LoanServiceTests {
 
     @Test
     void testIsValidEstonianPersonalCode() {
-        // Kontrollime õiget koodi
         assertTrue(loanService.isValidEstonianPersonalCode("60510200222"));
-        // Kontrollime valet kontrollnumbrit
         assertFalse(loanService.isValidEstonianPersonalCode("60510200221"));
-        // Kontrollime liiga lühikest koodi
         assertFalse(loanService.isValidEstonianPersonalCode("6051020"));
     }
 
     @Test
     void testAgeControl_Success() {
-        // Mockime seaded andmebaasist
-        when(settingsRepository.findById("MAX_AGE")).thenReturn(Optional.of(new Settings("MAX_AGE", "70")));
-        when(settingsRepository.findById("MIN_AGE")).thenReturn(Optional.of(new Settings("MIN_AGE", "18")));
+        // Settings @AllArgsConstructor nõuab 3 argumenti: key, value, description
+        when(settingsRepository.findById("MAX_AGE"))
+                .thenReturn(Optional.of(new Settings("MAX_AGE", "70", null)));
+        when(settingsRepository.findById("MIN_AGE"))
+                .thenReturn(Optional.of(new Settings("MIN_AGE", "18", null)));
 
         boolean result = loanService.ageControl(sampleApp);
         assertTrue(result);
@@ -69,8 +68,10 @@ class LoanServiceTests {
     void testAgeControl_TooYoung() {
         sampleApp.setPersonalCode("51001010007"); // Sündinud 2010 (liiga noor)
 
-        when(settingsRepository.findById("MAX_AGE")).thenReturn(Optional.of(new Settings("MAX_AGE", "70")));
-        when(settingsRepository.findById("MIN_AGE")).thenReturn(Optional.of(new Settings("MIN_AGE", "18")));
+        when(settingsRepository.findById("MAX_AGE"))
+                .thenReturn(Optional.of(new Settings("MAX_AGE", "70", null)));
+        when(settingsRepository.findById("MIN_AGE"))
+                .thenReturn(Optional.of(new Settings("MIN_AGE", "18", null)));
 
         boolean result = loanService.ageControl(sampleApp);
         assertFalse(result);
