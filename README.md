@@ -44,7 +44,7 @@ docker-compose up db
 ## API dokumentatsioon
 
 Swagger UI on kättesaadav pärast käivitamist:
-http://localhost:8080/swagger-ui.html
+http://localhost:8080/swagger-ui/index.html 
 
 ## API endpointid
 
