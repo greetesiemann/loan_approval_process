@@ -66,8 +66,7 @@ POST /api/loan/apply
   "personalCode": "60510200222",
   "loanAmount": 15000,
   "loanPeriodMonths": 60,
-  "interestMargin": 2.0,
-  "baseInterestRate": 2.415
+  "interestMargin": 2.0
 }
 ```
 
