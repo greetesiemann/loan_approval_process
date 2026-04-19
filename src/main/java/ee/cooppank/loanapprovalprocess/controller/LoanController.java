@@ -37,4 +37,9 @@ public class LoanController {
     public LoanApplication reject(@PathVariable UUID id, @RequestBody String reason) {
         return loanService.rejectLoan(id, reason);
     }
+
+    @PutMapping("/{id}/update")
+    public LoanApplication updateAndRegenerate(@PathVariable UUID id, @RequestBody LoanApplication updatedData) {
+        return loanService.updateAndRegenerate(id, updatedData);
+    }
 }

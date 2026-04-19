@@ -8,4 +8,5 @@ import java.util.UUID;
 
 @Repository
 public interface PaymentScheduleRepository extends JpaRepository<PaymentSchedule, UUID> {
+    void deleteByLoanApplicationId(UUID loanApplicationId);
 }

@@ -6,11 +6,12 @@ import ee.cooppank.loanapprovalprocess.entity.Settings;
 import ee.cooppank.loanapprovalprocess.exception.ActiveLoanException;
 import ee.cooppank.loanapprovalprocess.exception.InvalidPersonalCodeException;
 import ee.cooppank.loanapprovalprocess.exception.LoanNotFoundException;
+import ee.cooppank.loanapprovalprocess.exception.ProcessFinishedException;
 import ee.cooppank.loanapprovalprocess.repository.LoanApplicationRepository;
 import ee.cooppank.loanapprovalprocess.repository.PaymentScheduleRepository;
 import ee.cooppank.loanapprovalprocess.repository.SettingsRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -203,5 +204,33 @@ public class LoanService {
         return settingsRepository.findById(key)
                 .map(Settings::getValue)
                 .orElseThrow(() -> new RuntimeException("Seadet " + key + " ei leitud andmebaasist!"));
+    }
+
+    @Transactional
+    public LoanApplication updateAndRegenerate(UUID id, LoanApplication updatedData) {
+        LoanApplication application = getApplication(id);
+
+        // Kontrollime, et protsess poleks juba lõppenud
+        if ("APPROVED".equals(application.getStatus()) || "REJECTED".equals(application.getStatus())) {
+            throw new ProcessFinishedException("Lõppenud protsessi graafikut ei saa muuta.");
+        }
+
+        // Uuendame muudetavad väljad
+        application.setLoanAmount(updatedData.getLoanAmount());
+        application.setLoanPeriodMonths(updatedData.getLoanPeriodMonths());
+        application.setInterestMargin(updatedData.getInterestMargin());
+
+        // Värskendame ka Euribori (et oleks kõige uuem määr andmebaasist)
+        String euriborValue = getSettingValue("EURIBOR_6M");
+        application.setBaseInterestRate(new BigDecimal(euriborValue));
+
+        // 1. Kustutame vana graafiku
+        paymentScheduleRepository.deleteByLoanApplicationId(id);
+
+        // 2. Genereerime uue graafiku
+        List<PaymentSchedule> newSchedules = generatePaymentSchedule(application);
+        paymentScheduleRepository.saveAll(newSchedules);
+
+        return loanRepository.save(application);
     }
 }

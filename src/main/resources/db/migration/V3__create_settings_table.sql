@@ -6,4 +6,4 @@ CREATE TABLE settings (
 
 INSERT INTO settings (key, value, description) VALUES ('MAX_AGE', '70', 'Maksimaalne kliendi vanus');
 INSERT INTO settings (key, value, description) VALUES ('MIN_AGE', '18', 'Minimaalne kliendi vanus');
-INSERT INTO settings (key, value, description) VALUES ('EURIBOR_6M', '3.85', '6 kuu Euribori määr protsentides');
+INSERT INTO settings (key, value, description) VALUES ('EURIBOR_6M', '2.415', '6 kuu Euribori määr protsentides');
