@@ -1,5 +1,6 @@
 package ee.cooppank.loanapprovalprocess.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -16,6 +17,7 @@ public class PaymentSchedule {
     @Id
     private UUID id;
 
+    @JsonIgnore
     @ManyToOne
     @JoinColumn(name = "loan_application_id")
     private LoanApplication loanApplication;

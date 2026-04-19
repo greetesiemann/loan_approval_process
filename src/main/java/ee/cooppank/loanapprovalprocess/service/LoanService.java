@@ -1,24 +1,33 @@
 package ee.cooppank.loanapprovalprocess.service;
 
 import ee.cooppank.loanapprovalprocess.entity.LoanApplication;
+import ee.cooppank.loanapprovalprocess.entity.PaymentSchedule;
 import ee.cooppank.loanapprovalprocess.exception.ActiveLoanException;
 import ee.cooppank.loanapprovalprocess.exception.InvalidPersonalCodeException;
+import ee.cooppank.loanapprovalprocess.exception.LoanNotFoundException;
 import ee.cooppank.loanapprovalprocess.repository.LoanApplicationRepository;
+import ee.cooppank.loanapprovalprocess.repository.PaymentScheduleRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.text.DateFormat;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class LoanService {
+
+    private final PaymentScheduleRepository paymentScheduleRepository;
 
     private final LoanApplicationRepository repository;
     @Value("${loan.validation.max-age}")
     private int maxAge;
 
-    public LoanService(LoanApplicationRepository repository) {
+    public LoanService(PaymentScheduleRepository paymentScheduleRepository, LoanApplicationRepository repository) {
+        this.paymentScheduleRepository = paymentScheduleRepository;
         this.repository = repository;
     }
 
@@ -84,19 +93,61 @@ public class LoanService {
     public LoanApplication saveApplication(LoanApplication application) {
         // Kutsume kontrollid välja
         validateApplication(application);
+        application.setStatus("STARTED");
+        return repository.save(application);
+    }
 
-        // Arvutame vanuse isikukoodist
+    public LoanApplication processApplication(LoanApplication application) {
+        if (ageControl(application)) {
+            List<PaymentSchedule> schedules = generatePaymentSchedule(application);
+            paymentScheduleRepository.saveAll(schedules);
+            application.setStatus("IN_REVIEW");
+        }
+        return repository.save(application);
+    }
+
+    public List<PaymentSchedule> generatePaymentSchedule (LoanApplication application) {
+        BigDecimal r = application.getBaseInterestRate()
+                .add(application.getInterestMargin())
+                .divide(BigDecimal.valueOf(100 * 12), 10, RoundingMode.HALF_UP);
+
+        double rDouble = r.doubleValue();
+        int n = application.getLoanPeriodMonths();
+        double pmt = application.getLoanAmount().doubleValue() * rDouble / (1 - Math.pow(1 + rDouble, -n));
+        BigDecimal monthlyPayment = BigDecimal.valueOf(pmt).setScale(2, RoundingMode.HALF_UP);
+        List<PaymentSchedule> schedule = new ArrayList<>();
+        BigDecimal remainingBalance = application.getLoanAmount();
+
+        for (int i = 1; i <= application.getLoanPeriodMonths(); i++) {
+            BigDecimal interest = remainingBalance.multiply(r).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal principal = monthlyPayment.subtract(interest);
+            remainingBalance = remainingBalance.subtract(principal);
+            PaymentSchedule entry = new PaymentSchedule();
+            entry.setLoanApplication(application);
+            entry.setPaymentNr(i);
+            entry.setPaymentDate(LocalDate.now().plusMonths(i - 1));
+            entry.setTotalPayment(monthlyPayment);
+            entry.setInterest(interest);
+            entry.setPrincipal(principal);
+            entry.setRemainingBalance(remainingBalance);
+            schedule.add(entry);
+        }
+        return schedule;
+    }
+
+    public boolean ageControl(LoanApplication application) {
         int age = personsAge(application.getPersonalCode());
 
-        // Vanusekontroll
         if (age > maxAge) {
             application.setStatus("REJECTED");
             application.setRejectionReason("CUSTOMER_TOO_OLD");
-        } else {
-            // Kui vanus on sobiv, siis määrame algolekuks STARTED
-            application.setStatus("STARTED");
+            return false;
+        } else if (age < 18) {  // checking if the person is an adult
+            application.setStatus("REJECTED");
+            application.setRejectionReason("CUSTOMER_TOO_YOUNG");
+            return false;
         }
-        return repository.save(application);
+        return true;
     }
 
     public int personsAge(String personalCode) {
@@ -121,5 +172,10 @@ public class LoanService {
         LocalDate birthDate = LocalDate.of(birthYear, birthMonth, birthDay);
         // Arvutame vanuse aastates võrreldes tänasega
         return (int) java.time.temporal.ChronoUnit.YEARS.between(birthDate, LocalDate.now());
+    }
+
+    public LoanApplication getApplication(UUID id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new LoanNotFoundException("Taotlust ei leitud"));
     }
 }

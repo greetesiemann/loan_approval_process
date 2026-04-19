@@ -3,10 +3,9 @@ package ee.cooppank.loanapprovalprocess.controller;
 import ee.cooppank.loanapprovalprocess.entity.LoanApplication;
 import ee.cooppank.loanapprovalprocess.service.LoanService;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/loan")
@@ -20,7 +19,12 @@ public class LoanController {
 
     @PostMapping("/apply")
     public LoanApplication apply(@Valid @RequestBody LoanApplication application) {
-        // Ära kutsu ainult validateApplication, vaid kutsu meetodit, mis ka SALVESTAB
-        return loanService.saveApplication(application);
+        LoanApplication saved = loanService.saveApplication(application);
+        return loanService.processApplication(saved);
+    }
+
+    @GetMapping("/{id}")
+    public LoanApplication getApplication(@PathVariable UUID id) {
+        return loanService.getApplication(id);
     }
 }

@@ -1,14 +1,12 @@
 package ee.cooppank.loanapprovalprocess.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.PrePersist;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -44,6 +42,9 @@ public class LoanApplication {
     private String status; // Näiteks: "APPROVED", "REJECTED"
     private String rejectionReason;
     private LocalDateTime createdAt;
+
+    @OneToMany(mappedBy = "loanApplication", fetch = FetchType.EAGER)
+    private List<PaymentSchedule> paymentSchedule;
 
     @PrePersist
     protected void onCreate() {
