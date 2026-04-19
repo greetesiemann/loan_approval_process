@@ -2,11 +2,13 @@ package ee.cooppank.loanapprovalprocess.service;
 
 import ee.cooppank.loanapprovalprocess.entity.LoanApplication;
 import ee.cooppank.loanapprovalprocess.entity.PaymentSchedule;
+import ee.cooppank.loanapprovalprocess.entity.Settings;
 import ee.cooppank.loanapprovalprocess.exception.ActiveLoanException;
 import ee.cooppank.loanapprovalprocess.exception.InvalidPersonalCodeException;
 import ee.cooppank.loanapprovalprocess.exception.LoanNotFoundException;
 import ee.cooppank.loanapprovalprocess.repository.LoanApplicationRepository;
 import ee.cooppank.loanapprovalprocess.repository.PaymentScheduleRepository;
+import ee.cooppank.loanapprovalprocess.repository.SettingsRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -21,14 +23,14 @@ import java.util.UUID;
 public class LoanService {
 
     private final PaymentScheduleRepository paymentScheduleRepository;
+    private final LoanApplicationRepository loanRepository;
+    private final SettingsRepository settingsRepository;
 
-    private final LoanApplicationRepository repository;
-    @Value("${loan.validation.max-age}")
-    private int maxAge;
 
-    public LoanService(PaymentScheduleRepository paymentScheduleRepository, LoanApplicationRepository repository) {
+    public LoanService(PaymentScheduleRepository paymentScheduleRepository, LoanApplicationRepository loanRepository, SettingsRepository settingsRepository) {
         this.paymentScheduleRepository = paymentScheduleRepository;
-        this.repository = repository;
+        this.loanRepository = loanRepository;
+        this.settingsRepository = settingsRepository;
     }
 
     public boolean isValidEstonianPersonalCode(String personalCode) {
@@ -85,7 +87,7 @@ public class LoanService {
         // Kontrollime aktiivse taotluse olemasolu
         // Kasutame juhendis toodud lõppolekuid "APPROVED" ja "REJECTED"
         List<String> closedStatuses = List.of("APPROVED", "REJECTED");
-        if (repository.existsByPersonalCodeAndStatusNotIn(application.getPersonalCode(), closedStatuses)) {
+        if (loanRepository.existsByPersonalCodeAndStatusNotIn(application.getPersonalCode(), closedStatuses)) {
             throw new ActiveLoanException("Kliendil on juba aktiivne laenutaotlus.");
         }
     }
@@ -94,16 +96,19 @@ public class LoanService {
         // Kutsume kontrollid välja
         validateApplication(application);
         application.setStatus("STARTED");
-        return repository.save(application);
+        return loanRepository.save(application);
     }
 
     public LoanApplication processApplication(LoanApplication application) {
+        String euriborValue = getSettingValue("EURIBOR_6M");
+        application.setBaseInterestRate(new BigDecimal(euriborValue));
+
         if (ageControl(application)) {
             List<PaymentSchedule> schedules = generatePaymentSchedule(application);
             paymentScheduleRepository.saveAll(schedules);
             application.setStatus("IN_REVIEW");
         }
-        return repository.save(application);
+        return loanRepository.save(application);
     }
 
     public List<PaymentSchedule> generatePaymentSchedule (LoanApplication application) {
@@ -137,12 +142,14 @@ public class LoanService {
 
     public boolean ageControl(LoanApplication application) {
         int age = personsAge(application.getPersonalCode());
+        int maxAgeFromDb = Integer.parseInt(getSettingValue("MAX_AGE"));
+        int minAgeFromDb = Integer.parseInt(getSettingValue("MIN_AGE"));
 
-        if (age > maxAge) {
+        if (age > maxAgeFromDb) {
             application.setStatus("REJECTED");
             application.setRejectionReason("CUSTOMER_TOO_OLD");
             return false;
-        } else if (age < 18) {  // checking if the person is an adult
+        } else if (age < minAgeFromDb) {  // checking if the person is an adult
             application.setStatus("REJECTED");
             application.setRejectionReason("CUSTOMER_TOO_YOUNG");
             return false;
@@ -175,7 +182,26 @@ public class LoanService {
     }
 
     public LoanApplication getApplication(UUID id) {
-        return repository.findById(id)
+        return loanRepository.findById(id)
                 .orElseThrow(() -> new LoanNotFoundException("Taotlust ei leitud"));
+    }
+
+    public LoanApplication approveLoan(UUID id) {
+        LoanApplication application = getApplication(id);
+        application.setStatus("APPROVED");
+        return loanRepository.save(application);
+    }
+
+    public LoanApplication rejectLoan(UUID id, String reason) {
+        LoanApplication application = getApplication(id);
+        application.setStatus("REJECTED");
+        application.setRejectionReason(reason);
+        return loanRepository.save(application);
+    }
+
+    private String getSettingValue(String key) {
+        return settingsRepository.findById(key)
+                .map(Settings::getValue)
+                .orElseThrow(() -> new RuntimeException("Seadet " + key + " ei leitud andmebaasist!"));
     }
 }

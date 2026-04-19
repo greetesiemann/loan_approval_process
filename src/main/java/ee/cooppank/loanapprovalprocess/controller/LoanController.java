@@ -27,4 +27,14 @@ public class LoanController {
     public LoanApplication getApplication(@PathVariable UUID id) {
         return loanService.getApplication(id);
     }
+
+    @PostMapping("/{id}/approve")
+    public LoanApplication approve(@PathVariable UUID id) {
+        return loanService.approveLoan(id);
+    }
+
+    @PostMapping("/{id}/reject")
+    public LoanApplication reject(@PathVariable UUID id, @RequestBody String reason) {
+        return loanService.rejectLoan(id, reason);
+    }
 }

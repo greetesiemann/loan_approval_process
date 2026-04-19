@@ -1,11 +1,9 @@
 package ee.cooppank.loanapprovalprocess.repository;
 
-import ee.cooppank.loanapprovalprocess.entity.PaymentSchedule;
+import ee.cooppank.loanapprovalprocess.entity.Settings;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.UUID;
-
 @Repository
-public interface PaymentScheduleRepository extends JpaRepository<PaymentSchedule, UUID> {
+public interface SettingsRepository extends JpaRepository<Settings, String> {
 }
