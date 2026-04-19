@@ -85,6 +85,7 @@ Parameetrid on hallatavad andmebaasi `settings` tabeli kaudu:
 | `EURIBOR_6M` | 2.415 | 6 kuu Euribori määr protsentides |
 
 ## Projekti struktuur
+'''text
 src/
 ├── main/
 │   ├── java/ee/cooppank/loanapprovalprocess/
