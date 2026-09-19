@@ -1,6 +1,6 @@
 # Loan Approval Process
 
-Coop panga tarkvaraarendaja praktika kodutöö — laenutaotluste esitamise ja kinnitamise protsessi taustarakendus (backend).
+Laenutaotluste esitamise ja kinnitamise protsessi taustarakendus (backend).
 
 ## Tehnoloogiad
 
